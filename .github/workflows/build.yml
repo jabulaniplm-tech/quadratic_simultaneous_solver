@@ -15,27 +15,34 @@ jobs:
       with:
         python-version: '3.9'
         
-    - name: Install system dependencies
+    - name: Update system and install essential dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip openjdk-17-jdk \
-          autoconf libtool pkg-config \
-          zlib1g-dev libncurses5-dev \
-          libncursesw5-dev cmake \
-          libffi-dev libssl-dev python3-pip
+        sudo apt-get install -y python3-pip python3-setuptools
+        sudo apt-get install -y git zip unzip
+        sudo apt-get install -y openjdk-17-jdk
+        sudo apt-get install -y autoconf libtool pkg-config
+        sudo apt-get install -y zlib1g-dev
+        sudo apt-get install -y libncurses-dev
+        sudo apt-get install -y cmake
+        sudo apt-get install -y libffi-dev libssl-dev
           
-    - name: Install Buildozer
-      run: pip install buildozer
-      
-    - name: Build APK
+    - name: Install Buildozer and dependencies
       run: |
-        buildozer init
-        buildozer -v android debug
+        pip install buildozer
+        pip install Cython
+        pip install setuptools
+      
+    - name: Initialize Buildozer
+      run: buildozer init
+      
+    - name: Build APK (this takes 30-60 minutes)
+      run: buildozer -v android debug
+      timeout-minutes: 120
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: Physics-Solver-App
+        name: Physics-Solver-APK
         path: bin/*.apk
         retention-days: 7
