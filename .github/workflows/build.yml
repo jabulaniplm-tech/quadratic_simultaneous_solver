@@ -33,11 +33,15 @@ jobs:
         pip install Cython
         pip install setuptools
     
-    - name: Accept Android SDK licenses
+    - name: Setup Android SDK and accept licenses
       run: |
-        mkdir -p ~/.android
-        touch ~/.android/repositories.cfg
-        yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses
+        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+        mkdir -p android-sdk/cmdline-tools
+        unzip commandlinetools-linux-8512546_latest.zip -d android-sdk/cmdline-tools
+        mv android-sdk/cmdline-tools/cmdline-tools android-sdk/cmdline-tools/latest
+        echo "export ANDROID_SDK_ROOT=$PWD/android-sdk" >> $GITHUB_ENV
+        echo "export PATH=$PWD/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+        yes | sdkmanager --licenses
       
     - name: Build APK (this takes 30-60 minutes)
       run: buildozer -v android debug
