@@ -19,5 +19,3 @@ icon.filename = %(source.dir)s/icon.png
 android.permissions = 
 android.api = 33
 android.minapi = 21
-android.ndk_path = 
-android.sdk_path = 
