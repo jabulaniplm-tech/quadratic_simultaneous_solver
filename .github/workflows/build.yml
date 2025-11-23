@@ -1,14 +1,16 @@
 name: Build Android APK
+
 on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Python
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
@@ -16,19 +18,24 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-        
+        sudo apt-get install -y \
+          git zip unzip openjdk-17-jdk \
+          autoconf libtool pkg-config \
+          zlib1g-dev libncurses5-dev \
+          libncursesw5-dev cmake \
+          libffi-dev libssl-dev python3-pip
+          
     - name: Install Buildozer
       run: pip install buildozer
-        
-    - name: Build APK with Buildozer
+      
+    - name: Build APK
       run: |
         buildozer init
         buildozer -v android debug
         
-    - name: Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: Physics-Solver-APK
+        name: Physics-Solver-App
         path: bin/*.apk
-        retention-days: 30
+        retention-days: 7
