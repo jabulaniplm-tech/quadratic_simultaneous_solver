@@ -32,9 +32,13 @@ jobs:
         pip install buildozer
         pip install Cython
         pip install setuptools
-      
-    # REMOVED: buildozer init (since we already have the file)
     
+    - name: Accept Android SDK licenses
+      run: |
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses
+      
     - name: Build APK (this takes 30-60 minutes)
       run: buildozer -v android debug
       timeout-minutes: 120
