@@ -1,49 +1,93 @@
-name: Build Android APK
+name: Build APK
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    env:
+      ANDROID_SDK_ROOT: ${{ runner.home }}/android-sdk
+
     steps:
-    - name: Checkout code
+    - name: Checkout repo
       uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v4
+
+    - name: Setup JDK 11
+      uses: actions/setup-java@v4
       with:
-        python-version: '3.8'
-        
-    - name: Install system dependencies
+        distribution: 'temurin'
+        java-version: '11'
+
+    - name: Install system deps
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip openjdk-8-jdk \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libffi-dev libssl-dev
-          
-    - name: Install Buildozer
+        sudo apt-get update -y
+        sudo apt-get install -y unzip curl python3-pip python3-venv
+
+    - name: Create Android SDK directory
       run: |
-        pip install buildozer
-        pip install Cython==0.29.33
-    
-    - name: Pre-accept Android licenses
+        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+        mkdir -p $ANDROID_SDK_ROOT/platform-tools
+        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+    - name: Download Android commandline tools
       run: |
-        mkdir -p ~/.android
-        touch ~/.android/repositories.cfg
-        # Pre-create license acceptance
-        yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses 2>/dev/null || true
-        yes | $ANDROID_SDK_ROOT/tools/bin/sdkmanager --licenses 2>/dev/null || true
-      
-    - name: Build APK
+        cd $ANDROID_SDK_ROOT
+        # If this URL fails in future, replace with the latest commandlinetools zip from Google
+        curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -o commandlinetools.zip
+        unzip -q commandlinetools.zip -d cmdline-tools
+        mkdir -p cmdline-tools/latest
+        # Some zips place files under cmdline-tools/cmdline-tools/, move them into "latest"
+        mv cmdline-tools/cmdline-tools/* cmdline-tools/latest/ || true
+        rm commandlinetools.zip
+
+    - name: Add sdkmanager and platform-tools to PATH
       run: |
-        buildozer -v android debug 2>&1 | tee build.log
-      timeout-minutes: 150
-        
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: Physics-Solver-APK
-        path: bin/*.apk
-        retention-days: 7
+        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+        echo "$ANDROID_SDK_ROOT/build-tools" >> $GITHUB_PATH
+
+    - name: Install Android SDK packages (platform-tools, platform, build-tools)
+      run: |
+        # Replace android-31 with whichever API level you need
+        sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-31" "build-tools;36.1.0"
+      env:
+        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+    - name: Accept Android SDK licenses
+      run: |
+        yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
+      env:
+        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+    - name: Verify aidl exists
+      run: |
+        if [ -f "$ANDROID_SDK_ROOT/build-tools/36.1.0/aidl" ]; then
+          echo "aidl found at $ANDROID_SDK_ROOT/build-tools/36.1.0/aidl"
+          ls -l "$ANDROID_SDK_ROOT/build-tools/36.1.0/"
+        else
+          echo "aidl NOT found. Listing build-tools directory:"
+          ls -la "$ANDROID_SDK_ROOT/build-tools" || true
+          exit 1
+        fi
+
+    - name: Setup python env & install buildozer deps
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install buildozer cython
+        # If your app uses other python-for-android / requirements, install here:
+        # pip install -r requirements.txt
+
+    - name: Build APK with buildozer
+      run: |
+        source .venv/bin/activate
+        # Clean previous builds (optional)
+        buildozer -v android debug
+        # or for release:
+        # buildozer -v android release
+      env:
+        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
