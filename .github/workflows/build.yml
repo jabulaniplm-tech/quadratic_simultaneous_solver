@@ -1,1 +1,22 @@
+name: Build Android APK
 
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build with Buildozer
+      uses: artem-ryabov/buildozer-action@v1
+      with:
+        work-dir: ./
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Physics-Solver-APK
+        path: bin/*.apk
