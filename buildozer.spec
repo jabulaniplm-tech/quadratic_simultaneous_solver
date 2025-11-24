@@ -20,3 +20,4 @@ android.api = 33
 android.minapi = 21
 android.ndk_path = 
 android.sdk_path = 
+android.arch = armeabi-v7a
