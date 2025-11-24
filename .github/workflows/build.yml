@@ -21,16 +21,27 @@ jobs:
         sudo apt-get install -y \
           git zip unzip openjdk-8-jdk \
           autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libffi-dev libssl-dev
+          libncurses5-dev libffi-dev libssl-dev \
+          wget  # Added for SDK download
           
     - name: Install Buildozer
       run: |
         pip install buildozer
         pip install Cython==0.29.33
-      
-    - name: Build APK
+    
+    - name: Setup Android SDK and accept licenses
       run: |
-        buildozer -v android debug
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        # Download and setup Android command line tools
+        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+        mkdir -p android-sdk
+        unzip commandlinetools-linux-8512546_latest.zip -d android-sdk
+        yes | android-sdk/cmdline-tools/bin/sdkmanager --licenses
+      
+    - name: Build APK with auto-accept
+      run: |
+        yes | buildozer -v android debug
       timeout-minutes: 150
         
     - name: Upload APK
