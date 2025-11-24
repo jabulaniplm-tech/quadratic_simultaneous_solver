@@ -1,144 +1,73 @@
-name: Build APK
+name: Android Build (Buildozer)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Choose debug or release build'
-        required: true
-        default: 'debug'
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      ANDROID_SDK_ROOT: $HOME/android-sdk
-
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      # 1. Install Buildozer Dependencies (Crucial for Android compilation)
+      - name: Install Buildozer dependencies
+        run: |
+          sudo apt update
+          # Install necessary packages including openjdk-17-jdk for Android SDK
+          sudo apt install -y \
+            build-essential \
+            zlib1g-dev \
+            libncurses5-dev \
+            libffi-dev \
+            libssl-dev \
+            openjdk-17-jdk \
+            python3-pip \
+            python3-setuptools \
+            python3-wheel \
+            git
 
-    - name: Setup JDK 11
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '11'
+      # 2. Set up Python
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Install system deps
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y unzip curl python3-pip python3-venv
+      # 3. Install Buildozer
+      - name: Install Buildozer and Kivy
+        run: |
+          pip install --upgrade pip setuptools
+          # Install Buildozer
+          pip install buildozer
+          # Assuming you also need Kivy/KivyMD for local execution, though Buildozer handles mobile dependencies.
+          # If Kivy/KivyMD is not needed for the CI step, this can be skipped.
+          # pip install kivy kivymd
 
-    - name: Create Android SDK directory
-      run: |
-        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-        mkdir -p $ANDROID_SDK_ROOT/platform-tools
+      # 4. Cache the .buildozer folder (speeds up subsequent builds significantly)
+      - name: Set up Buildozer cache
+        uses: actions/cache@v4
+        with:
+          path: ./.buildozer
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
 
-    - name: Download and install Android commandline tools (compatible version)
-      run: |
-        set -e
-        TMP_ZIP=/tmp/cmdline-tools.zip
-        TMP_DIR=$(mktemp -d)
-        # Working version that still includes sdkmanager jars
-        curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip" -o $TMP_ZIP
-        unzip -q $TMP_ZIP -d $TMP_DIR
+      # 5. Run Buildozer to create the debug APK
+      # The 'android debug' command will download the necessary Android SDK, NDK, and tools
+      - name: Build Android Debug APK
+        run: buildozer android debug
 
-        EXTRACTED_DIR=$(find "$TMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -n1)
-        if [ -z "$EXTRACTED_DIR" ]; then
-          echo "Extraction failed — listing $TMP_DIR"
-          ls -la "$TMP_DIR"
-          exit 1
-        fi
-
-        rm -rf $ANDROID_SDK_ROOT/cmdline-tools/latest
-        mv "$EXTRACTED_DIR" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-        rm -f $TMP_ZIP
-
-    - name: Add sdkmanager to PATH and verify layout
-      run: |
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-
-        echo "Java:"
-        java -version || true
-
-        echo "cmdline-tools/latest contents:"
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest" || true
-
-        echo "bin:"
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
-
-        echo "lib:"
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" || true
-
-        if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" ] || [ -z "$(ls -A "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" 2>/dev/null)" ]; then
-          echo "ERROR: lib is empty — sdkmanager cannot run"
-          exit 1
-        fi
-
-    # DEBUG: this prints layout and files so we can see what's actually present
-    -name: 
-      run: |
-        echo "---- SDKTOOLS LAYOUT ----"
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools" || true
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest" || true
-
-        echo "---- BIN ----"
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
-
-        echo "---- LIB ----"
-        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" || true
-
-        echo "---- JAR FILES FOUND ----"
-        find "$ANDROID_SDK_ROOT/cmdline-tools/latest" -name '*.jar' -ls || true
-
-        echo "---- FIRST 80 LINES of sdkmanager ----"
-        sed -n '1,80p' "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" || true
-
-        echo "---- JAVA VERSION ----"
-        java -version || true
-
-    - name: Install SDK packages (explicit sdkmanager)
-      run: |
-        "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-          --sdk_root="$ANDROID_SDK_ROOT" \
-          "platform-tools" \
-          "platforms;android-31" \
-          "build-tools;36.1.0"
-
-    - name: Accept Android SDK licenses
-      run: |
-        yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-          --sdk_root="$ANDROID_SDK_ROOT" --licenses
-
-    - name: Verify aidl exists
-      run: |
-        if [ -f "$ANDROID_SDK_ROOT/build-tools/36.1.0/aidl" ]; then
-          echo "AIDL OK"
-        else
-          echo "AIDL missing"
-          ls -la "$ANDROID_SDK_ROOT/build-tools" || true
-          exit 1
-        fi
-
-    - name: Setup python env & install buildozer
-      run: |
-        python3 -m venv venv
-        source venv/bin/activate
-        pip install --upgrade pip
-        pip install buildozer cython
-
-    - name: Build APK with buildozer
-      run: |
-        source venv/bin/activate
-        if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
-          echo "Building RELEASE APK"
-          buildozer -v android release
-        else
-          echo "Building DEBUG APK"
-          buildozer -v android debug
-        fi
+      # 6. Upload the generated APK as an artifact
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quadratic-solver-android-apk
+          path: bin/*.apk
+          retention-days: 7
