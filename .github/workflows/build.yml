@@ -29,10 +29,16 @@ jobs:
         pip install buildozer
         pip install Cython
         pip install setuptools
-      
-    - name: Build APK
+    
+    - name: Accept Android licenses
       run: |
-        buildozer -v android debug
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
+        yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
+      
+    - name: Build APK with auto-accept
+      run: |
+        yes | buildozer -v android debug
       timeout-minutes: 120
         
     - name: Upload APK
