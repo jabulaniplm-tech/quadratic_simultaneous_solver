@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Which build to run: debug or release (release will produce an unsigned release apk)'
+        required: true
+        default: 'debug'
 
 jobs:
   build:
@@ -32,14 +37,15 @@ jobs:
         mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
         mkdir -p $ANDROID_SDK_ROOT/platform-tools
 
-    - name: Download and install Android commandline tools (robust)
+    - name: Download and install Android commandline tools (compatible version)
       run: |
         set -e
+        # Use a commandlinetools version known to include sdkmanager jars (stable on CI)
         TMP_ZIP=/tmp/cmdline-tools.zip
         TMP_DIR=$(mktemp -d)
-        curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -o $TMP_ZIP
+        # Older stable bundle that contains sdkmanager jars
+        curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip" -o $TMP_ZIP
         unzip -q $TMP_ZIP -d $TMP_DIR
-        # find the directory created by unzip and move it into cmdline-tools/latest
         EXTRACTED_DIR=$(find "$TMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -n1)
         if [ -z "$EXTRACTED_DIR" ]; then
           echo "Extraction failed — listing $TMP_DIR"
@@ -55,12 +61,9 @@ jobs:
       run: |
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-        echo "JAVA at: $(which java)"; java -version || true
-        echo "Listing cmdline-tools/latest contents:"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest
-        echo "Listing bin and lib:"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin || true
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/lib || true
+        echo "Java location: $(which java)"; java -version || true
+        echo "Listing cmdline-tools/latest contents:"; ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest
+        echo "Listing bin and lib:"; ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin || true; ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/lib || true
         if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" ] || [ -z "$(ls -A $ANDROID_SDK_ROOT/cmdline-tools/latest/lib 2>/dev/null)" ]; then
           echo "ERROR: lib/ is empty or missing under cmdline-tools/latest — cannot run sdkmanager"
           exit 1
@@ -68,6 +71,7 @@ jobs:
 
     - name: Install SDK packages (explicit sdkmanager)
       run: |
+        # Adjust API level or build-tools version here if needed
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-31" "build-tools;36.1.0"
       env:
         ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
@@ -99,7 +103,12 @@ jobs:
     - name: Build APK with buildozer
       run: |
         source venv/bin/activate
-        # Uncomment/adjust the command below to match your buildozer target
-        buildozer -v android debug
+        if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
+          echo "Running release build (unsigned). If you need a signed release, configure a keystore in buildozer.spec and secrets."
+          buildozer -v android release
+        else
+          echo "Running debug build"
+          buildozer -v android debug
+        fi
       env:
         ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
