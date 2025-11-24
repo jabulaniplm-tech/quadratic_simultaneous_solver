@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Which build to run: debug or release (release will produce an unsigned release apk)'
+        description: 'Choose debug or release build'
         required: true
         default: 'debug'
 
@@ -18,6 +18,7 @@ jobs:
       ANDROID_SDK_ROOT: $HOME/android-sdk
 
     steps:
+
     - name: Checkout repo
       uses: actions/checkout@v4
 
@@ -40,56 +41,65 @@ jobs:
     - name: Download and install Android commandline tools (compatible version)
       run: |
         set -e
-        # Use a commandlinetools version known to include sdkmanager jars (stable on CI)
         TMP_ZIP=/tmp/cmdline-tools.zip
         TMP_DIR=$(mktemp -d)
-        # Older stable bundle that contains sdkmanager jars
+        # Working version that still includes sdkmanager jars
         curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip" -o $TMP_ZIP
         unzip -q $TMP_ZIP -d $TMP_DIR
+
         EXTRACTED_DIR=$(find "$TMP_DIR" -maxdepth 1 -mindepth 1 -type d | head -n1)
         if [ -z "$EXTRACTED_DIR" ]; then
           echo "Extraction failed — listing $TMP_DIR"
           ls -la "$TMP_DIR"
           exit 1
         fi
+
         rm -rf $ANDROID_SDK_ROOT/cmdline-tools/latest
         mv "$EXTRACTED_DIR" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
         rm -f $TMP_ZIP
-        echo "Installed to: $ANDROID_SDK_ROOT/cmdline-tools/latest"
 
     - name: Add sdkmanager to PATH and verify layout
       run: |
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-        echo "Java location: $(which java)"; java -version || true
-        echo "Listing cmdline-tools/latest contents:"; ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest
-        echo "Listing bin and lib:"; ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin || true; ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/lib || true
+
+        echo "Java:"
+        java -version || true
+
+        echo "cmdline-tools/latest:"
+        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest
+
+        echo "bin:"
+        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+
+        echo "lib:"
+        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/lib || true
+
         if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" ] || [ -z "$(ls -A $ANDROID_SDK_ROOT/cmdline-tools/latest/lib 2>/dev/null)" ]; then
-          echo "ERROR: lib/ is empty or missing under cmdline-tools/latest — cannot run sdkmanager"
+          echo "ERROR: lib is empty — sdkmanager cannot run"
           exit 1
         fi
 
     - name: Install SDK packages (explicit sdkmanager)
       run: |
-        # Adjust API level or build-tools version here if needed
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-31" "build-tools;36.1.0"
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+          --sdk_root="$ANDROID_SDK_ROOT" \
+          "platform-tools" \
+          "platforms;android-31" \
+          "build-tools;36.1.0"
 
     - name: Accept Android SDK licenses
       run: |
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+          --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
     - name: Verify aidl exists
       run: |
         if [ -f "$ANDROID_SDK_ROOT/build-tools/36.1.0/aidl" ]; then
-          echo "aidl found at $ANDROID_SDK_ROOT/build-tools/36.1.0/aidl"
-          ls -l "$ANDROID_SDK_ROOT/build-tools/36.1.0/"
+          echo "AIDL OK"
         else
-          echo "aidl NOT found. Listing build-tools directory:"
-          ls -la "$ANDROID_SDK_ROOT/build-tools" || true
+          echo "AIDL missing"
+          ls -la "$ANDROID_SDK_ROOT/build-tools"
           exit 1
         fi
 
@@ -104,11 +114,9 @@ jobs:
       run: |
         source venv/bin/activate
         if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
-          echo "Running release build (unsigned). If you need a signed release, configure a keystore in buildozer.spec and secrets."
+          echo "Building RELEASE APK"
           buildozer -v android release
         else
-          echo "Running debug build"
+          echo "Building DEBUG APK"
           buildozer -v android debug
         fi
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
