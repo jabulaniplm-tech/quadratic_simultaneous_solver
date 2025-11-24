@@ -1,6 +1,6 @@
 name: Build Android APK
 
-on: [push, pull_request]
+on: [push]
 
 jobs:
   build:
@@ -10,26 +10,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      
+    - name: Build with Buildozer
+      uses: artem-ryabov/buildozer-action@v1
       with:
-        python-version: '3.9'
-        
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y python3-pip
-        sudo apt-get install -y git zip unzip openjdk-17-jdk
-        sudo apt-get install -y autoconf libtool pkg-config zlib1g-dev
-        sudo apt-get install -y libncurses-dev cmake libffi-dev libssl-dev
-          
-    - name: Install Buildozer
-      run: pip install buildozer Cython
-    
-    - name: Build APK with auto-license acceptance
-      run: |
-        yes | buildozer -v android debug 2>&1 | tee build.log
-      timeout-minutes: 120
+        work-dir: ./
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
