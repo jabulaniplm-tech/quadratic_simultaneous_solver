@@ -79,7 +79,26 @@ jobs:
           echo "ERROR: lib is empty — sdkmanager cannot run"
           exit 1
         fi
+ name: DEBUG: Print SDK layout before running sdkmanager
+      run: |
+        echo "---- SDKTOOLS LAYOUT ----"
+        ls -la $ANDROID_SDK_ROOT/cmdline-tools || true
+        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest || true
 
+        echo "---- BIN ----"
+        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin || true
+
+        echo "---- LIB ----"
+        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/lib || true
+
+        echo "---- JAR FILES FOUND ----"
+        find $ANDROID_SDK_ROOT/cmdline-tools/latest -name '*.jar' -ls || true
+
+        echo "---- FIRST 80 LINES of sdkmanager ----"
+        sed -n '1,80p' $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager || true
+
+        echo "---- JAVA VERSION ----"
+        java -version || true
     - name: Install SDK packages (explicit sdkmanager)
       run: |
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
