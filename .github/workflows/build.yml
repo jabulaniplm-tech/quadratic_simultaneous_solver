@@ -81,7 +81,7 @@ jobs:
         fi
 
     # DEBUG: this prints layout and files so we can see what's actually present
-    - name: DEBUG: Print SDK layout before running sdkmanager
+    -name: 
       run: |
         echo "---- SDKTOOLS LAYOUT ----"
         ls -la "$ANDROID_SDK_ROOT/cmdline-tools" || true
