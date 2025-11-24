@@ -66,42 +66,45 @@ jobs:
         echo "Java:"
         java -version || true
 
-        echo "cmdline-tools/latest:"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest
+        echo "cmdline-tools/latest contents:"
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest" || true
 
         echo "bin:"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
 
         echo "lib:"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/lib || true
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" || true
 
-        if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" ] || [ -z "$(ls -A $ANDROID_SDK_ROOT/cmdline-tools/latest/lib 2>/dev/null)" ]; then
+        if [ ! -d "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" ] || [ -z "$(ls -A "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" 2>/dev/null)" ]; then
           echo "ERROR: lib is empty — sdkmanager cannot run"
           exit 1
         fi
- name: DEBUG: Print SDK layout before running sdkmanager
+
+    # DEBUG: this prints layout and files so we can see what's actually present
+    - name: DEBUG: Print SDK layout before running sdkmanager
       run: |
         echo "---- SDKTOOLS LAYOUT ----"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools || true
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest || true
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools" || true
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest" || true
 
         echo "---- BIN ----"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/bin || true
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" || true
 
         echo "---- LIB ----"
-        ls -la $ANDROID_SDK_ROOT/cmdline-tools/latest/lib || true
+        ls -la "$ANDROID_SDK_ROOT/cmdline-tools/latest/lib" || true
 
         echo "---- JAR FILES FOUND ----"
-        find $ANDROID_SDK_ROOT/cmdline-tools/latest -name '*.jar' -ls || true
+        find "$ANDROID_SDK_ROOT/cmdline-tools/latest" -name '*.jar' -ls || true
 
         echo "---- FIRST 80 LINES of sdkmanager ----"
-        sed -n '1,80p' $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager || true
+        sed -n '1,80p' "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" || true
 
         echo "---- JAVA VERSION ----"
         java -version || true
+
     - name: Install SDK packages (explicit sdkmanager)
       run: |
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+        "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
           --sdk_root="$ANDROID_SDK_ROOT" \
           "platform-tools" \
           "platforms;android-31" \
@@ -109,7 +112,7 @@ jobs:
 
     - name: Accept Android SDK licenses
       run: |
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+        yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
           --sdk_root="$ANDROID_SDK_ROOT" --licenses
 
     - name: Verify aidl exists
@@ -118,7 +121,7 @@ jobs:
           echo "AIDL OK"
         else
           echo "AIDL missing"
-          ls -la "$ANDROID_SDK_ROOT/build-tools"
+          ls -la "$ANDROID_SDK_ROOT/build-tools" || true
           exit 1
         fi
 
