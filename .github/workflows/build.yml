@@ -8,10 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     env:
-      ANDROID_SDK_ROOT: ${{ runner.home }}/android-sdk
+      ANDROID_SDK_ROOT: $HOME/android-sdk
 
     steps:
+
     - name: Checkout repo
       uses: actions/checkout@v4
 
@@ -29,65 +31,47 @@ jobs:
     - name: Create Android SDK directory
       run: |
         mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-        mkdir -p $ANDROID_SDK_ROOT/platform-tools
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
 
-    - name: Download Android commandline tools
+    - name: Download Android Commandline Tools
       run: |
         cd $ANDROID_SDK_ROOT
-        # If this URL fails in future, replace with the latest commandlinetools zip from Google
-        curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -o commandlinetools.zip
-        unzip -q commandlinetools.zip -d cmdline-tools
+        curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -o tools.zip
+        unzip -q tools.zip -d cmdline-tools
         mkdir -p cmdline-tools/latest
-        # Some zips place files under cmdline-tools/cmdline-tools/, move them into "latest"
         mv cmdline-tools/cmdline-tools/* cmdline-tools/latest/ || true
-        rm commandlinetools.zip
+        rm tools.zip
 
-    - name: Add sdkmanager and platform-tools to PATH
+    - name: Add sdkmanager to PATH
       run: |
         echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/build-tools" >> $GITHUB_PATH
 
-    - name: Install Android SDK packages (platform-tools, platform, build-tools)
+    - name: Install SDK packages
       run: |
-        # Replace android-31 with whichever API level you need
         sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-31" "build-tools;36.1.0"
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
-    - name: Accept Android SDK licenses
+    - name: Accept licenses
       run: |
         yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 
     - name: Verify aidl exists
       run: |
         if [ -f "$ANDROID_SDK_ROOT/build-tools/36.1.0/aidl" ]; then
-          echo "aidl found at $ANDROID_SDK_ROOT/build-tools/36.1.0/aidl"
-          ls -l "$ANDROID_SDK_ROOT/build-tools/36.1.0/"
+          echo "AIDL OK"
         else
-          echo "aidl NOT found. Listing build-tools directory:"
-          ls -la "$ANDROID_SDK_ROOT/build-tools" || true
+          echo "AIDL NOT FOUND"
+          ls -R "$ANDROID_SDK_ROOT/build-tools"
           exit 1
         fi
 
-    - name: Setup python env & install buildozer deps
+    - name: Setup python env & install buildozer
       run: |
-        python3 -m venv .venv
-        source .venv/bin/activate
+        python3 -m venv venv
+        source venv/bin/activate
         pip install --upgrade pip
         pip install buildozer cython
-        # If your app uses other python-for-android / requirements, install here:
-        # pip install -r requirements.txt
 
-    - name: Build APK with buildozer
+    - name: Build APK
       run: |
-        source .venv/bin/activate
-        # Clean previous builds (optional)
+        source venv/bin/activate
         buildozer -v android debug
-        # or for release:
-        # buildozer -v android release
-      env:
-        ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
